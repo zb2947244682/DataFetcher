@@ -96,12 +96,14 @@ router.post('/:id/crawl', async (req, res) => {
 
     // 异步执行爬取任务
     cronService.updateTopicNews(topic).catch(error => {
-      logger.error(`手动触发主题爬取数据时出错:`, error);
+      const errorMessage = `手动触发主题爬取数据时出错:\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+      logger.error(errorMessage);
     });
 
     res.json({ message: '数据爬取任务已启动' });
   } catch (error) {
-    logger.error('触发数据爬取时出错:', error);
+    const errorMessage = `触发数据爬取时出错:\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+    logger.error(errorMessage);
     res.status(500).json({ error: '触发数据爬取失败' });
   }
 });

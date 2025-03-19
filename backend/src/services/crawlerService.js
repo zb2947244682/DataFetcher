@@ -212,6 +212,43 @@ class CrawlerService {
     searchUrl.searchParams.set(source.searchParam, keyword);
     return searchUrl.toString();
   }
+
+  async fetchNewsForTopic(topic) {
+    logger.info(`开始为主题 "${topic.title}" 抓取新闻`);
+    
+    try {
+      // 使用主题的关键词进行搜索
+      const newsItems = await this.crawlAllSources(topic, topic.keywords);
+      
+      // 获取每篇新闻的详细内容
+      const enrichedNewsItems = [];
+      for (const item of newsItems) {
+        try {
+          logger.info(`获取新闻内容: ${item.title}`);
+          const content = await this.getNewsContent(item.url);
+          if (content) {
+            enrichedNewsItems.push({
+              ...item,
+              content
+            });
+          }
+        } catch (error) {
+          logger.error(`获取新闻内容失败: ${item.url}`, error);
+        }
+      }
+
+      // 去重，只保留唯一的URL
+      const uniqueNewsItems = Array.from(
+        new Map(enrichedNewsItems.map(item => [item.url, item])).values()
+      );
+
+      logger.info(`成功获取 ${uniqueNewsItems.length} 条唯一新闻`);
+      return uniqueNewsItems;
+    } catch (error) {
+      logger.error(`抓取新闻失败: ${error.message}`);
+      throw error;
+    }
+  }
 }
 
-module.exports = new CrawlerService(); 
+module.exports = CrawlerService; 

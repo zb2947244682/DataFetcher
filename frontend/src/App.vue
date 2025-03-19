@@ -206,17 +206,48 @@ export default {
         await axios.post(`http://localhost:40030/api/topics/${this.currentTopic._id}/crawl`);
         this.$message.success('数据爬取任务已启动');
         
+        // 开始轮询日志
         this.startCrawlLogPolling();
         
-        setTimeout(() => {
-          this.refreshNews();
-          if (this.crawlLogPollingInterval) {
-            clearInterval(this.crawlLogPollingInterval);
+        // 每秒检查一次是否完成
+        let checkCount = 0;
+        const maxChecks = 300; // 最多等待5分钟
+        
+        const checkInterval = setInterval(async () => {
+          try {
+            const response = await axios.get(`http://localhost:40030/api/topics/${this.currentTopic._id}/crawl-logs`);
+            const logs = response.data;
+            
+            // 更新日志
+            this.crawlLogs = logs;
+            
+            // 检查是否有完成或错误的标志
+            const lastLog = logs[logs.length - 1];
+            const isCompleted = lastLog && (
+              lastLog.message.includes('新闻更新完成') ||
+              lastLog.level === 'error'
+            );
+            
+            if (isCompleted || checkCount >= maxChecks) {
+              clearInterval(checkInterval);
+              if (this.crawlLogPollingInterval) {
+                clearInterval(this.crawlLogPollingInterval);
+              }
+              this.refreshNews();
+              this.isCrawling = false;
+              
+              if (checkCount >= maxChecks) {
+                this.$message.warning('抓取任务超时，请检查日志了解详情');
+              }
+            }
+            
+            checkCount++;
+          } catch (error) {
+            console.error('检查抓取状态失败:', error);
           }
-        }, 5000);
+        }, 1000);
       } catch (error) {
         this.$message.error('触发数据爬取失败');
-      } finally {
         this.isCrawling = false;
       }
     },
@@ -274,7 +305,9 @@ export default {
         }
       };
 
+      // 立即执行一次
       pollCrawlLogs();
+      // 每秒轮询一次
       this.crawlLogPollingInterval = setInterval(pollCrawlLogs, 1000);
     },
     formatDate(date) {

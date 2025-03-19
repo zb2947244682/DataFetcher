@@ -78,8 +78,9 @@ class CronService {
           await news.save();
           addTopicCrawlLog(topic._id, 'info', `成功保存新闻: ${item.title}`);
         } catch (error) {
-          logger.error(`处理新闻时出错: ${item.url}`, error);
-          addTopicCrawlLog(topic._id, 'error', `处理新闻失败: ${item.url} - ${error.message}`);
+          const errorMessage = `处理新闻失败: ${item.url}\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+          logger.error(errorMessage);
+          addTopicCrawlLog(topic._id, 'error', errorMessage);
           continue;
         }
       }
@@ -87,8 +88,9 @@ class CronService {
       addTopicCrawlLog(topic._id, 'info', `主题 "${topic.title}" 的新闻更新完成`);
       logger.info(`主题 "${topic.title}" 的新闻更新完成`);
     } catch (error) {
-      logger.error(`更新主题 "${topic.title}" 的新闻时出错:`, error);
-      addTopicCrawlLog(topic._id, 'error', `更新失败: ${error.message}`);
+      const errorMessage = `更新主题 "${topic.title}" 的新闻时出错:\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+      logger.error(errorMessage);
+      addTopicCrawlLog(topic._id, 'error', errorMessage);
       throw error;
     }
   }
