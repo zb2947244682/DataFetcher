@@ -79,6 +79,13 @@
             <el-tab-pane label="网页列表" name="webpages">
               <web-page-list :topicId="currentTopic._id"></web-page-list>
             </el-tab-pane>
+            <el-tab-pane label="抓取日志" name="crawl-logs">
+              <div class="crawl-log-content" ref="crawlLogContent">
+                <p v-for="(log, index) in crawlLogs" :key="index" :class="log.level">
+                  {{ log.timestamp }}: {{ log.message }}
+                </p>
+              </div>
+            </el-tab-pane>
           </el-tabs>
         </div>
         <div v-else class="empty-state">
@@ -128,6 +135,7 @@ export default {
       currentTopic: null,
       newsList: [],
       logs: [],
+      crawlLogs: [],
       isRefreshing: false,
       isCrawling: false,
       createTopicDialogVisible: false,
@@ -148,7 +156,8 @@ export default {
       activeTab: 'news',
       pageSize: 10,
       currentPage: 1,
-      total: 0
+      total: 0,
+      crawlLogPollingInterval: null
     };
   },
   created() {
@@ -190,11 +199,21 @@ export default {
       if (!this.currentTopic) return;
       
       this.isCrawling = true;
+      this.crawlLogs = [];
+      this.activeTab = 'crawl-logs';
+      
       try {
         await axios.post(`http://localhost:40030/api/topics/${this.currentTopic._id}/crawl`);
         this.$message.success('数据爬取任务已启动');
-        // 5秒后自动刷新
-        setTimeout(() => this.refreshNews(), 5000);
+        
+        this.startCrawlLogPolling();
+        
+        setTimeout(() => {
+          this.refreshNews();
+          if (this.crawlLogPollingInterval) {
+            clearInterval(this.crawlLogPollingInterval);
+          }
+        }, 5000);
       } catch (error) {
         this.$message.error('触发数据爬取失败');
       } finally {
@@ -238,6 +257,26 @@ export default {
       pollLogs();
       setInterval(pollLogs, 5000);
     },
+    startCrawlLogPolling() {
+      if (this.crawlLogPollingInterval) {
+        clearInterval(this.crawlLogPollingInterval);
+      }
+
+      const pollCrawlLogs = async () => {
+        try {
+          const response = await axios.get(`http://localhost:40030/api/topics/${this.currentTopic._id}/crawl-logs`);
+          this.crawlLogs = response.data;
+          if (this.$refs.crawlLogContent) {
+            this.$refs.crawlLogContent.scrollTop = this.$refs.crawlLogContent.scrollHeight;
+          }
+        } catch (error) {
+          console.error('获取抓取日志失败:', error);
+        }
+      };
+
+      pollCrawlLogs();
+      this.crawlLogPollingInterval = setInterval(pollCrawlLogs, 1000);
+    },
     formatDate(date) {
       return new Date(date).toLocaleDateString();
     },
@@ -247,8 +286,7 @@ export default {
     },
     clearLogs() {
       this.logs = [];
-      // 可选：也清除服务器端的日志文件
-      axios.post('/api/logs/clear').catch(error => {
+      axios.post('http://localhost:40030/api/logs/clear').catch(error => {
         console.error('清除服务器日志失败:', error);
       });
     }
@@ -383,5 +421,25 @@ export default {
 
 .el-tabs {
   margin-top: 20px;
+}
+
+.crawl-log-content {
+  height: 400px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: #1e1e1e;
+  color: #fff;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.crawl-log-content p {
+  margin: 0;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style> 

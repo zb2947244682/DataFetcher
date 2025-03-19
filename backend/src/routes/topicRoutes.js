@@ -3,7 +3,7 @@ const Topic = require('../models/Topic');
 const News = require('../models/News');
 const aiService = require('../services/aiService');
 const cronService = require('../services/cronService');
-const { setupLogger } = require('../utils/logger');
+const { setupLogger, getTopicCrawlLogs } = require('../utils/logger');
 
 const router = express.Router();
 const logger = setupLogger();
@@ -137,6 +137,24 @@ router.get('/:topicId/webpages', async (req, res) => {
   } catch (error) {
     logger.error('获取主题网页列表失败:', error);
     res.status(500).json({ error: '获取主题网页列表失败' });
+  }
+});
+
+// 获取主题抓取日志
+router.get('/:id/crawl-logs', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const topic = await Topic.findById(id);
+    
+    if (!topic) {
+      return res.status(404).json({ error: '主题不存在' });
+    }
+
+    const logs = getTopicCrawlLogs(id);
+    res.json(logs);
+  } catch (error) {
+    logger.error('获取主题抓取日志时出错:', error);
+    res.status(500).json({ error: '获取抓取日志失败' });
   }
 });
 

@@ -4,6 +4,10 @@ const path = require('path');
 let logCache = [];
 const MAX_CACHE_SIZE = 1000;
 
+// 主题抓取日志缓存
+const topicCrawlLogs = new Map();
+const MAX_TOPIC_LOGS = 100;
+
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -35,6 +39,37 @@ const addToCache = (level, message) => {
   if (logCache.length > MAX_CACHE_SIZE) {
     logCache = logCache.slice(-MAX_CACHE_SIZE);
   }
+};
+
+// 添加主题抓取日志
+const addTopicCrawlLog = (topicId, level, message) => {
+  if (!topicCrawlLogs.has(topicId)) {
+    topicCrawlLogs.set(topicId, []);
+  }
+
+  const logs = topicCrawlLogs.get(topicId);
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level,
+    message: typeof message === 'string' ? message : JSON.stringify(message)
+  };
+
+  logs.push(logEntry);
+
+  // 保持日志数量在限制内
+  if (logs.length > MAX_TOPIC_LOGS) {
+    topicCrawlLogs.set(topicId, logs.slice(-MAX_TOPIC_LOGS));
+  }
+};
+
+// 获取主题抓取日志
+const getTopicCrawlLogs = (topicId) => {
+  return topicCrawlLogs.get(topicId) || [];
+};
+
+// 清除主题抓取日志
+const clearTopicCrawlLogs = (topicId) => {
+  topicCrawlLogs.delete(topicId);
 };
 
 // 扩展logger的方法
@@ -100,5 +135,8 @@ module.exports = {
   setupLogger,
   getLogCache,
   clearLogCache,
-  WebSocketTransport
+  WebSocketTransport,
+  addTopicCrawlLog,
+  getTopicCrawlLogs,
+  clearTopicCrawlLogs
 }; 
