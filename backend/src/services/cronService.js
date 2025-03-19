@@ -2,10 +2,11 @@ const cron = require('node-cron');
 const Topic = require('../models/Topic');
 const News = require('../models/News');
 const CrawlerService = require('./crawlerService');
-const aiService = require('./aiService');
+const AIService = require('./aiService');
 const { setupLogger, addTopicCrawlLog, clearTopicCrawlLogs } = require('../utils/logger');
 
 const logger = setupLogger();
+const aiService = new AIService();
 
 class CronService {
   constructor() {

@@ -1,11 +1,12 @@
 const winston = require('winston');
 const path = require('path');
 
-let logCache = [];
-const MAX_CACHE_SIZE = 1000;
+// 系统日志缓存
+let systemLogCache = [];
+const MAX_SYSTEM_CACHE_SIZE = 1000;
 
-// 主题抓取日志缓存
-const topicCrawlLogs = new Map();
+// 主题抓取日志缓存 - 使用对象而不是 Map，确保数据结构更简单
+let topicCrawlLogs = {};
 const MAX_TOPIC_LOGS = 100;
 
 const logger = winston.createLogger({
@@ -25,51 +26,69 @@ const logger = winston.createLogger({
   ]
 });
 
-// 自定义日志格式，添加到缓存
-const addToCache = (level, message) => {
+// 添加系统日志到缓存
+const addToSystemCache = (level, message) => {
   const logEntry = {
     timestamp: new Date().toISOString(),
     level,
     message: typeof message === 'string' ? message : JSON.stringify(message)
   };
   
-  logCache.push(logEntry);
+  systemLogCache.push(logEntry);
   
   // 保持缓存大小在限制内
-  if (logCache.length > MAX_CACHE_SIZE) {
-    logCache = logCache.slice(-MAX_CACHE_SIZE);
+  if (systemLogCache.length > MAX_SYSTEM_CACHE_SIZE) {
+    systemLogCache = systemLogCache.slice(-MAX_SYSTEM_CACHE_SIZE);
   }
 };
 
 // 添加主题抓取日志
 const addTopicCrawlLog = (topicId, level, message) => {
-  if (!topicCrawlLogs.has(topicId)) {
-    topicCrawlLogs.set(topicId, []);
+  if (!topicId) {
+    logger.error('添加主题抓取日志失败: 未提供主题ID');
+    return;
   }
 
-  const logs = topicCrawlLogs.get(topicId);
+  // 确保主题的日志数组存在
+  if (!topicCrawlLogs[topicId]) {
+    topicCrawlLogs[topicId] = [];
+  }
+
   const logEntry = {
     timestamp: new Date().toISOString(),
     level,
     message: typeof message === 'string' ? message : JSON.stringify(message)
   };
 
-  logs.push(logEntry);
+  // 添加日志到主题特定的数组
+  topicCrawlLogs[topicId].push(logEntry);
 
   // 保持日志数量在限制内
-  if (logs.length > MAX_TOPIC_LOGS) {
-    topicCrawlLogs.set(topicId, logs.slice(-MAX_TOPIC_LOGS));
+  if (topicCrawlLogs[topicId].length > MAX_TOPIC_LOGS) {
+    topicCrawlLogs[topicId] = topicCrawlLogs[topicId].slice(-MAX_TOPIC_LOGS);
   }
 };
 
 // 获取主题抓取日志
 const getTopicCrawlLogs = (topicId) => {
-  return topicCrawlLogs.get(topicId) || [];
+  if (!topicId) {
+    logger.error('获取主题抓取日志失败: 未提供主题ID');
+    return [];
+  }
+
+  // 返回主题的日志数组，如果不存在则返回空数组
+  return topicCrawlLogs[topicId] || [];
 };
 
 // 清除主题抓取日志
 const clearTopicCrawlLogs = (topicId) => {
-  topicCrawlLogs.delete(topicId);
+  if (!topicId) {
+    logger.error('清除主题抓取日志失败: 未提供主题ID');
+    return;
+  }
+
+  // 直接删除主题的日志数组
+  delete topicCrawlLogs[topicId];
 };
 
 // 扩展logger的方法
@@ -78,26 +97,26 @@ const originalError = logger.error;
 const originalWarn = logger.warn;
 
 logger.info = (message) => {
-  addToCache('info', message);
+  addToSystemCache('info', message);
   originalInfo.call(logger, message);
 };
 
 logger.error = (message) => {
-  addToCache('error', message);
+  addToSystemCache('error', message);
   originalError.call(logger, message);
 };
 
 logger.warn = (message) => {
-  addToCache('warn', message);
+  addToSystemCache('warn', message);
   originalWarn.call(logger, message);
 };
 
-// 获取日志缓存
-const getLogCache = () => logCache;
+// 获取系统日志缓存
+const getLogCache = () => systemLogCache;
 
-// 清除日志缓存
+// 清除系统日志缓存
 const clearLogCache = () => {
-  logCache = [];
+  systemLogCache = [];
 };
 
 // 设置日志实例

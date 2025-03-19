@@ -1,12 +1,13 @@
 const express = require('express');
 const Topic = require('../models/Topic');
 const News = require('../models/News');
-const aiService = require('../services/aiService');
+const AIService = require('../services/aiService');
 const cronService = require('../services/cronService');
 const { setupLogger, getTopicCrawlLogs } = require('../utils/logger');
 
 const router = express.Router();
 const logger = setupLogger();
+const aiService = new AIService();
 
 // 获取所有主题
 router.get('/', async (req, res) => {
@@ -149,10 +150,12 @@ router.get('/:id/crawl-logs', async (req, res) => {
     const topic = await Topic.findById(id);
     
     if (!topic) {
+      logger.error(`获取主题抓取日志失败: 主题 ${id} 不存在`);
       return res.status(404).json({ error: '主题不存在' });
     }
 
     const logs = getTopicCrawlLogs(id);
+    logger.info(`获取主题 "${topic.title}" 的抓取日志，共 ${logs.length} 条`);
     res.json(logs);
   } catch (error) {
     logger.error('获取主题抓取日志时出错:', error);

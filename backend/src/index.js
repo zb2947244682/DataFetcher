@@ -4,7 +4,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const { setupLogger } = require('./utils/logger');
-const { initializeCronJobs } = require('./services/cronService');
+const cronService = require('./services/cronService');
 const topicRoutes = require('./routes/topicRoutes');
 const newsRoutes = require('./routes/newsRoutes');
 const statusRoutes = require('./routes/statusRoutes');
@@ -39,9 +39,12 @@ app.use((err, req, res, next) => {
 });
 
 // 初始化定时任务
-initializeCronJobs();
+cronService.initializeCronJobs();
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`);
-}); 
+// 启动服务器
+const port = process.env.PORT || 40030;
+app.listen(port, () => {
+  logger.info(`Server is running on port ${port}`);
+});
+
+module.exports = app; 

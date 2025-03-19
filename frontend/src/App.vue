@@ -24,9 +24,14 @@
           <div class="log-panel">
             <div class="log-header">
               <h3>系统日志</h3>
-              <el-button size="small" type="danger" @click="clearLogs">
-                清除日志
-              </el-button>
+              <div class="log-actions">
+                <el-button size="small" type="primary" @click="copyLogs">
+                  复制日志
+                </el-button>
+                <el-button size="small" type="danger" @click="clearLogs">
+                  清除日志
+                </el-button>
+              </div>
             </div>
             <div class="log-content" ref="logContent">
               <p v-for="(log, index) in logs" :key="index" :class="log.level">
@@ -322,6 +327,15 @@ export default {
       axios.post('http://localhost:40030/api/logs/clear').catch(error => {
         console.error('清除服务器日志失败:', error);
       });
+    },
+    copyLogs() {
+      const logText = this.logs.map(log => `${log.timestamp}: ${log.message}`).join('\n');
+      navigator.clipboard.writeText(logText).then(() => {
+        this.$message.success('日志已复制到剪贴板');
+      }).catch(err => {
+        console.error('复制日志失败:', err);
+        this.$message.error('复制日志失败');
+      });
     }
   }
 };
@@ -370,6 +384,11 @@ export default {
 
 .log-header h3 {
   margin: 0;
+}
+
+.log-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .log-content {
@@ -474,5 +493,17 @@ export default {
   padding: 2px 0;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.crawl-log-content .info {
+  color: #7ec699;
+}
+
+.crawl-log-content .error {
+  color: #ff6b6b;
+}
+
+.crawl-log-content .warn {
+  color: #ffd93d;
 }
 </style> 
