@@ -14,30 +14,72 @@ class AIService {
       // 如果没有配置API，使用默认关键词
       if (!this.apiKey) {
         logger.warn('未配置AI API密钥，使用默认关键词');
-        return [topic.title, ...topic.title.split(' ')];
+        
+        // 预定义的中英文关键词映射
+        const keywordMappings = {
+          '人工智能': ['artificial intelligence', 'AI'],
+          '大模型': ['large language model', 'LLM'],
+          '机器学习': ['machine learning', 'ML'],
+          '深度学习': ['deep learning', 'DL'],
+          'GPT': ['GPT', 'ChatGPT'],
+          '神经网络': ['neural network', 'NN'],
+          '自然语言处理': ['natural language processing', 'NLP'],
+          '计算机视觉': ['computer vision', 'CV'],
+          '强化学习': ['reinforcement learning', 'RL'],
+          '语音识别': ['speech recognition', 'ASR']
+        };
+
+        // 从标题和描述中提取中文关键词
+        const chineseWords = new Set([
+          ...topic.title.split(/[\s,，、]+/),
+          ...topic.description.split(/[\s,，、]+/).filter(word => word.length >= 2)
+        ]);
+
+        // 生成中英文关键词
+        const keywords = [];
+        for (const word of chineseWords) {
+          keywords.push(word); // 添加中文关键词
+          // 如果有对应的英文关键词，也添加
+          if (keywordMappings[word]) {
+            keywords.push(...keywordMappings[word]);
+          }
+        }
+
+        // 添加一些通用的AI相关英文关键词
+        if (topic.title.includes('人工智能') || topic.title.includes('AI')) {
+          keywords.push('artificial intelligence', 'AI', 'machine learning', 'deep learning');
+        }
+        if (topic.title.includes('大模型') || topic.title.includes('LLM')) {
+          keywords.push('large language model', 'LLM', 'GPT', 'foundation model');
+        }
+
+        const uniqueKeywords = [...new Set(keywords)];
+        logger.info(`使用默认方法生成关键词: ${uniqueKeywords.join(', ')}`);
+        return uniqueKeywords;
       }
 
       const prompt = `
-        根据以下主题和描述，生成5-10个相关的搜索关键词：
+        根据以下主题和描述，生成中英文搜索关键词（每个概念都要包含中英文表达）：
         主题：${topic.title}
         描述：${topic.description}
         
         要求：
         1. 关键词应该与主题高度相关
-        2. 包含不同的表达方式
+        2. 包含中英文对照
         3. 考虑最新的发展趋势
-        4. 返回JSON格式数组
+        4. 包含通用缩写（如AI、ML、LLM等）
+        5. 返回JSON格式数组
       `;
 
       const response = await this.callAI(prompt);
       const keywords = this.parseKeywords(response);
       
       logger.info(`为主题 "${topic.title}" 生成关键词:`, keywords);
-      return keywords.length > 0 ? keywords : [topic.title];
+      return keywords.length > 0 ? keywords : [topic.title, 'AI', 'artificial intelligence'];
     } catch (error) {
       logger.error('生成关键词时出错:', error);
-      // 如果生成失败，至少返回主题标题作为关键词
-      return [topic.title];
+      // 如果生成失败，返回基本的中英文关键词
+      return [topic.title, 'AI', 'artificial intelligence'];
     }
   }
 

@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const Topic = require('../models/Topic');
 const News = require('../models/News');
-const crawlerService = require('./crawlerService');
+const CrawlerService = require('./crawlerService');
 const aiService = require('./aiService');
 const { setupLogger, addTopicCrawlLog, clearTopicCrawlLogs } = require('../utils/logger');
 
@@ -48,22 +48,71 @@ class CronService {
 
   async updateTopicNews(topic) {
     logger.info(`开始更新主题 "${topic.title}" 的新闻`);
+    
+    // 清除之前的日志
+    clearTopicCrawlLogs(topic._id);
+    
+    // 添加开始日志
     addTopicCrawlLog(topic._id, 'info', `开始更新主题 "${topic.title}" 的新闻`);
 
     try {
-      // 清除之前的日志
-      clearTopicCrawlLogs(topic._id);
-
-      const crawler = new crawlerService();
-      const newsItems = await crawler.fetchNewsForTopic(topic);
+      const crawler = new CrawlerService();
       
-      addTopicCrawlLog(topic._id, 'info', `成功获取 ${newsItems.length} 条新闻`);
+      // 检查关键词
+      if (!topic.keywords || topic.keywords.length === 0) {
+        const errorMsg = '主题没有关键词，尝试重新生成关键词';
+        logger.warn(errorMsg);
+        addTopicCrawlLog(topic._id, 'warn', errorMsg);
+        
+        // 重新生成关键词
+        topic.keywords = await aiService.generateKeywords(topic);
+        await Topic.findByIdAndUpdate(topic._id, { keywords: topic.keywords });
+        
+        addTopicCrawlLog(topic._id, 'info', `已生成新的关键词: ${topic.keywords.join(', ')}`);
+      }
 
-      for (const item of newsItems) {
+      // 记录使用的关键词
+      addTopicCrawlLog(topic._id, 'info', `使用以下关键词进行搜索: ${topic.keywords.join(', ')}`);
+
+      // 为每个关键词抓取新闻
+      let allNewsItems = [];
+      for (const keyword of topic.keywords) {
+        addTopicCrawlLog(topic._id, 'info', `正在搜索关键词: ${keyword}`);
         try {
-          // 使用AI服务生成摘要
+          const newsItems = await crawler.fetchNewsForTopic(topic, keyword);
+          addTopicCrawlLog(topic._id, 'info', `关键词 "${keyword}" 找到 ${newsItems.length} 条新闻`);
+          allNewsItems.push(...newsItems);
+        } catch (error) {
+          const errorMsg = `搜索关键词 "${keyword}" 时出错: ${error.message}`;
+          logger.error(errorMsg);
+          addTopicCrawlLog(topic._id, 'error', errorMsg);
+        }
+      }
+
+      // 去重
+      const uniqueUrls = new Set();
+      allNewsItems = allNewsItems.filter(item => {
+        if (uniqueUrls.has(item.url)) {
+          return false;
+        }
+        uniqueUrls.add(item.url);
+        return true;
+      });
+
+      addTopicCrawlLog(topic._id, 'info', `去重后共获取到 ${allNewsItems.length} 条唯一新闻`);
+
+      // 处理每条新闻
+      for (const item of allNewsItems) {
+        try {
           addTopicCrawlLog(topic._id, 'info', `正在处理新闻: ${item.title}`);
           
+          // 检查新闻是否已存在
+          const existingNews = await News.findOne({ topic: topic._id, url: item.url });
+          if (existingNews) {
+            addTopicCrawlLog(topic._id, 'info', `新闻已存在，跳过: ${item.title}`);
+            continue;
+          }
+
           const summary = await aiService.generateSummary(item.content);
           const news = new News({
             topic: topic._id,
@@ -78,17 +127,18 @@ class CronService {
           await news.save();
           addTopicCrawlLog(topic._id, 'info', `成功保存新闻: ${item.title}`);
         } catch (error) {
-          const errorMessage = `处理新闻失败: ${item.url}\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+          const errorMessage = `处理新闻失败: ${item.url}\n错误详情: ${error.message}`;
           logger.error(errorMessage);
           addTopicCrawlLog(topic._id, 'error', errorMessage);
           continue;
         }
       }
 
-      addTopicCrawlLog(topic._id, 'info', `主题 "${topic.title}" 的新闻更新完成`);
-      logger.info(`主题 "${topic.title}" 的新闻更新完成`);
+      const successMsg = `主题 "${topic.title}" 的新闻更新完成，共处理 ${allNewsItems.length} 条新闻`;
+      addTopicCrawlLog(topic._id, 'info', successMsg);
+      logger.info(successMsg);
     } catch (error) {
-      const errorMessage = `更新主题 "${topic.title}" 的新闻时出错:\n错误详情: ${error.message}\n堆栈跟踪: ${error.stack}`;
+      const errorMessage = `更新主题 "${topic.title}" 的新闻时出错: ${error.message}`;
       logger.error(errorMessage);
       addTopicCrawlLog(topic._id, 'error', errorMessage);
       throw error;
